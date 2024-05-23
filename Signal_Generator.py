@@ -46,7 +46,7 @@ class Signal_Generator:
         """
         Sets up the time array for signal generation.
         """
-        time_interval = 0.05 / self.max_freq
+        time_interval = 0.5 / self.max_freq
         num_samples = int(self.total_time / time_interval)
         t = np.linspace(0, self.total_time, num_samples, endpoint=False)
         return t, num_samples
@@ -62,7 +62,7 @@ class Signal_Generator:
         Default angular frequency distribution using normal distribution.
         """
         mean_freq = (self.min_freq + self.max_freq) / 2
-        sigma_freq = (self.max_freq - self.min_freq) / 6
+        sigma_freq = (self.max_freq - self.min_freq) / 10
         return np.random.normal(loc=2 * np.pi * mean_freq, scale=2 * np.pi * sigma_freq, size=size)
 
     def generating_clean_signal(self, amp_uselog=False):
@@ -155,7 +155,7 @@ class Signal_Generator:
             'Signal': combined_signal
         })
         return self.signal
-    
+   
     def printing_parameters(self):
         """
         Combines and prints all parameter data (amplitude, frequency, phase) into a single list called 'params'.
@@ -170,5 +170,5 @@ class Signal_Generator:
         else:
             params = []
             print("Some parameters have not been generated yet.")
-        
+
         return params
