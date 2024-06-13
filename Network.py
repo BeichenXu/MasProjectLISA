@@ -31,10 +31,9 @@ class CIN(nn.Module):
 
         return alpha * out + beta
     
-class ResBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, num_latent_variables, no_norm=False):
-        super(ResBlock, self).__init__()
-        self.no_norm = no_norm
+class Conditional_ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, num_latent_variables):
+        super(Conditional_ResBlock, self).__init__()
 
         self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
@@ -42,15 +41,15 @@ class ResBlock(nn.Module):
         
         self.leaky_relu = nn.LeakyReLU(0.2)
 
-        self.process1 = CIN(in_channels, num_latent_variables) if not no_norm else nn.Identity()
-        self.process2 = CIN(out_channels, num_latent_variables) if not no_norm else nn.Identity()
+        self.process1 = CIN(in_channels, num_latent_variables)
+        self.process2 = CIN(out_channels, num_latent_variables)
 
     def forward(self, x, z):
-        processed1 = self.process1(x, z) if not self.no_norm else x
+        processed1 = self.process1(x, z)
         conv1_out = self.conv1(processed1)
         conv1_activated = self.leaky_relu(processed1)
 
-        processed2 = self.process2(conv1_activated, z) if not self.no_norm else conv1_activated
+        processed2 = self.process2(conv1_activated, z)
         conv2_out = self.conv2(processed2)
         conv2_activated = self.leaky_relu(conv2_out)
 
@@ -58,19 +57,52 @@ class ResBlock(nn.Module):
 
         return conv3_out + conv1_out
     
-class Down(nn.Module):
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResBlock, self).__init__()
+
+        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv1d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        
+        self.leaky_relu = nn.LeakyReLU(0.2)
+
+    def forward(self, x):
+        conv1_out = self.conv1(x)
+
+        conv1_activated = self.leaky_relu(x)
+        conv2_out = self.conv2(conv1_activated)
+        conv2_activated = self.leaky_relu(conv2_out)
+        conv3_out = self.conv3(conv2_activated)
+
+        return conv3_out + conv1_out
+    
+class Conditional_Down(nn.Module):
     def __init__(self, in_channels, out_channels, num_latent_variables):
-        super(Down, self).__init__()
+        super(Conditional_Down, self).__init__()
         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         self.relu = nn.LeakyReLU(0.2)
         self.avg_pool = nn.AvgPool1d(kernel_size=2, stride=2)
-        self.res_block = ResBlock(in_channels=out_channels, out_channels=out_channels, num_latent_variables=num_latent_variables, no_norm=False)
+        self.res_block = Conditional_ResBlock(in_channels=out_channels, out_channels=out_channels, num_latent_variables=num_latent_variables)
 
     def forward(self, x, condition):
         x = self.conv(x)
         x = self.relu(x)
         x = self.avg_pool(x)
         x = self.res_block(x, condition)
+        return x
+    
+class Down(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(Down, self).__init__()
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.relu = nn.LeakyReLU(0.2)
+        self.avg_pool = nn.AvgPool1d(kernel_size=2, stride=2)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.relu(x)
+        x = self.avg_pool(x)
         return x
     
 class Generator(nn.Module):
@@ -82,12 +114,12 @@ class Generator(nn.Module):
         self.init_relu = nn.LeakyReLU(0.2)
         
         # ResBlock without normalization
-        self.res_block_no_norm = ResBlock(base_channels, base_channels, num_latent_variables, no_norm=True)
+        self.res_block_no_norm = ResBlock(base_channels, base_channels)
         
         # Down-sampling
-        self.down1 = Down(base_channels, base_channels * 2, num_latent_variables)
-        self.down2 = Down(base_channels * 2, base_channels * 4, num_latent_variables)
-        self.down3 = Down(base_channels * 4, base_channels * 8, num_latent_variables)
+        self.down1 = Conditional_Down(base_channels, base_channels * 2, num_latent_variables)
+        self.down2 = Conditional_Down(base_channels * 2, base_channels * 4, num_latent_variables)
+        self.down3 = Conditional_Down(base_channels * 4, base_channels * 8, num_latent_variables)
         
         # Dense layer
         self.flatten = nn.Flatten()
@@ -99,7 +131,7 @@ class Generator(nn.Module):
         x = self.init_relu(x)
         
         # ResBlock without norm
-        x = self.res_block_no_norm(x, z)
+        x = self.res_block_no_norm(x)
         
         # Down-sampling
         d1 = self.down1(x, z)
@@ -113,19 +145,19 @@ class Generator(nn.Module):
         return out
 
 class Discriminator(nn.Module):
-    def __init__(self, input_channels, num_latent_variables, length=1000, num_parameters=3, base_channels=64):
+    def __init__(self, input_channels, length=1000, num_parameters=3, base_channels=64):
         super(Discriminator, self).__init__()
 
         # Initial convolution block
         self.init_conv = nn.Conv1d(input_channels, base_channels, kernel_size=3, stride=1, padding=1)
         self.init_leaky_relu = nn.LeakyReLU(0.2)
 
-        self.res_block_no_norm = ResBlock(base_channels, base_channels, num_latent_variables, no_norm=True)
+        self.res_block_no_norm = ResBlock(base_channels, base_channels)
 
         # Down-sampling layers
-        self.down1 = Down(base_channels, base_channels * 2, num_latent_variables)
-        self.down2 = Down(base_channels * 2, base_channels * 4, num_latent_variables)
-        self.down3 = Down(base_channels * 4, base_channels * 8, num_latent_variables)
+        self.down1 = Down(base_channels, base_channels * 2)
+        self.down2 = Down(base_channels * 2, base_channels * 4)
+        self.down3 = Down(base_channels * 4, base_channels * 8)
 
         # Flatten and Dense layers
         self.flatten = nn.Flatten()
@@ -136,18 +168,18 @@ class Discriminator(nn.Module):
         self.final_dense = nn.Linear(128, 1)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x, params, z):
+    def forward(self, x, params):
         # Pass through initial conv layer and Leaky ReLU
         x = self.init_conv(x)
         x = self.init_leaky_relu(x)
 
         # Pass through ResBlock without normalization
-        x = self.res_block_no_norm(x, z)
+        x = self.res_block_no_norm(x)
 
         # Down-sampling steps
-        x = self.down1(x, z)
-        x = self.down2(x, z)
-        x = self.down3(x, z)
+        x = self.down1(x)
+        x = self.down2(x)
+        x = self.down3(x)
 
         # Flatten
         x = self.flatten(x)
