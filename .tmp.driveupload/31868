@@ -3,7 +3,7 @@
 # with '#' will be ignored, and an empty message aborts the commit.
 #
 # On branch main
-# Your branch is ahead of 'origin/main' by 2 commits.
+# Your branch is ahead of 'origin/main' by 3 commits.
 #   (use "git push" to publish your local commits)
 #
 # Changes to be committed:
@@ -11,54 +11,98 @@
 #	modified:   .tmp.driveupload/31776
 #	modified:   .tmp.driveupload/31856
 #	modified:   .tmp.driveupload/31868
-#	new file:   .tmp.driveupload/33492
-#	new file:   .tmp.driveupload/33496
-#	new file:   .tmp.driveupload/33500
-#	new file:   .tmp.driveupload/33504
-#	new file:   .tmp.driveupload/33508
-#	new file:   .tmp.driveupload/33512
-#	new file:   .tmp.driveupload/33516
-#	new file:   .tmp.driveupload/33520
-#	new file:   .tmp.driveupload/33522
-#	new file:   .tmp.driveupload/33526
-#	new file:   .tmp.driveupload/33530
-#	new file:   .tmp.driveupload/33534
-#	new file:   .tmp.driveupload/33538
-#	new file:   .tmp.driveupload/33540
-#	new file:   .tmp.driveupload/33544
-#	new file:   .tmp.driveupload/33548
-#	new file:   .tmp.driveupload/33552
-#	new file:   .tmp.driveupload/33554
+#	new file:   .tmp.driveupload/33558
+#	new file:   .tmp.driveupload/33562
+#	new file:   .tmp.driveupload/33564
+#	new file:   .tmp.driveupload/33568
+#	new file:   .tmp.driveupload/33572
+#	new file:   .tmp.driveupload/33576
+#	new file:   .tmp.driveupload/33580
+#	new file:   .tmp.driveupload/33584
+#	new file:   .tmp.driveupload/33588
+#	new file:   .tmp.driveupload/33592
+#	new file:   .tmp.driveupload/33596
+#	new file:   .tmp.driveupload/33598
+#	new file:   .tmp.driveupload/33602
+#	new file:   .tmp.driveupload/33606
+#	new file:   .tmp.driveupload/33610
+#	new file:   .tmp.driveupload/33614
+#	new file:   .tmp.driveupload/33618
+#	new file:   .tmp.driveupload/33622
+#	new file:   .tmp.driveupload/33624
+#	new file:   .tmp.driveupload/33628
+#	new file:   .tmp.driveupload/33630
+#	new file:   .tmp.driveupload/33634
+#	new file:   .tmp.driveupload/33638
+#	new file:   .tmp.driveupload/33640
 #
 # Changes not staged for commit:
 #	deleted:    .tmp.driveupload/31766
 #	deleted:    .tmp.driveupload/31776
+#	deleted:    .tmp.driveupload/31818
+#	deleted:    .tmp.driveupload/31820
+#	deleted:    .tmp.driveupload/31822
+#	deleted:    .tmp.driveupload/31826
+#	deleted:    .tmp.driveupload/31830
+#	deleted:    .tmp.driveupload/31834
+#	deleted:    .tmp.driveupload/31840
+#	deleted:    .tmp.driveupload/31844
+#	deleted:    .tmp.driveupload/31848
 #	deleted:    .tmp.driveupload/31856
 #	deleted:    .tmp.driveupload/31868
+#	deleted:    .tmp.driveupload/33446
+#	deleted:    .tmp.driveupload/33450
+#	deleted:    .tmp.driveupload/33454
+#	deleted:    .tmp.driveupload/33456
+#	deleted:    .tmp.driveupload/33460
+#	deleted:    .tmp.driveupload/33464
+#	deleted:    .tmp.driveupload/33468
+#	deleted:    .tmp.driveupload/33472
+#	deleted:    .tmp.driveupload/33476
+#	deleted:    .tmp.driveupload/33480
+#	deleted:    .tmp.driveupload/33484
+#	deleted:    .tmp.driveupload/33488
+#	deleted:    .tmp.driveupload/33492
+#	deleted:    .tmp.driveupload/33496
+#	deleted:    .tmp.driveupload/33500
+#	deleted:    .tmp.driveupload/33504
+#	deleted:    .tmp.driveupload/33508
+#	deleted:    .tmp.driveupload/33512
+#	deleted:    .tmp.driveupload/33516
+#	deleted:    .tmp.driveupload/33520
+#	deleted:    .tmp.driveupload/33522
+#	deleted:    .tmp.driveupload/33526
+#	deleted:    .tmp.driveupload/33530
+#	deleted:    .tmp.driveupload/33534
+#	deleted:    .tmp.driveupload/33538
+#	deleted:    .tmp.driveupload/33540
+#	deleted:    .tmp.driveupload/33544
+#	deleted:    .tmp.driveupload/33548
+#	deleted:    .tmp.driveupload/33552
+#	deleted:    .tmp.driveupload/33554
+#	deleted:    .tmp.driveupload/33558
+#	deleted:    .tmp.driveupload/33562
+#	deleted:    .tmp.driveupload/33564
+#	deleted:    .tmp.driveupload/33568
+#	deleted:    .tmp.driveupload/33572
+#	deleted:    .tmp.driveupload/33576
+#	deleted:    .tmp.driveupload/33580
+#	deleted:    .tmp.driveupload/33584
+#	deleted:    .tmp.driveupload/33588
+#	deleted:    .tmp.driveupload/33592
+#	deleted:    .tmp.driveupload/33596
+#	deleted:    .tmp.driveupload/33598
+#	deleted:    .tmp.driveupload/33602
+#	deleted:    .tmp.driveupload/33606
+#	deleted:    .tmp.driveupload/33610
+#	deleted:    .tmp.driveupload/33614
+#	deleted:    .tmp.driveupload/33618
+#	deleted:    .tmp.driveupload/33622
+#	deleted:    .tmp.driveupload/33624
+#	deleted:    .tmp.driveupload/33628
+#	deleted:    .tmp.driveupload/33630
+#	deleted:    .tmp.driveupload/33634
+#	deleted:    .tmp.driveupload/33638
+#	deleted:    .tmp.driveupload/33640
 #
-# Untracked files:
-#	.tmp.driveupload/33558
-#	.tmp.driveupload/33562
-#	.tmp.driveupload/33564
-#	.tmp.driveupload/33568
-#	.tmp.driveupload/33572
-#	.tmp.driveupload/33576
-#	.tmp.driveupload/33580
-#	.tmp.driveupload/33584
-#	.tmp.driveupload/33588
-#	.tmp.driveupload/33592
-#	.tmp.driveupload/33596
-#	.tmp.driveupload/33598
-#	.tmp.driveupload/33602
-#	.tmp.driveupload/33606
-#	.tmp.driveupload/33610
-#	.tmp.driveupload/33614
-#	.tmp.driveupload/33618
-#	.tmp.driveupload/33622
-#	.tmp.driveupload/33624
-#	.tmp.driveupload/33628
-#	.tmp.driveupload/33630
-#	.tmp.driveupload/33634
-#	.tmp.driveupload/33638
-#
-update
+cleaned up
