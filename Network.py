@@ -7,8 +7,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from Signal_Analyzer import  *
-
 import os
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
