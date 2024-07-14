@@ -1,6 +1,5 @@
 # Importing the necessary libraries
 import torch
-from torch import optim, utils
 
 import matplotlib.pyplot as plt
 from getdist import plots, MCSamples
@@ -14,21 +13,27 @@ from tqdm import tqdm
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Defining the hyperparameters
+datasize = 16000
 num_sources = 1
 noise_amplitude = 0
 
 num_latent_variables = 20
 learning_rate = 1e-5
+weight_clip = 0.1
 
 d_loss_threshold = -0.1
-g_loss_threshold = -0.5
+g_loss_threshold = -0.3
+threshold_adjustment = 0.025
+max_steps = 300
 
-num_epochs = 20
+patience = 10
+
+num_epochs = 1
 
 # Generating the dataset
 dataset = []
 
-for i in range(16000):
+for i in range(datasize):
     SG = Signal_Generator(num_sources=num_sources, noise_amplitude=noise_amplitude)
     signals = SG.generating_signal()
     params = SG.printing_parameters()
@@ -39,12 +44,15 @@ for i in range(16000):
 
     dataset.append((signal_tensor, params_tensor))
 
-train_loader = utils.data.DataLoader(dataset, batch_size=128, shuffle=True)
+train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(0.8*datasize), int(0.2*datasize)])
+
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True)
+val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=False)
 
 # Defining the WGAN traning class
-class WGAN():
-    def __init__(self, dataset, num_latent_variables, lr, weight_clip):
-        self.dataset = dataset
+class WGAN(torch.nn.Module):
+    def __init__(self, num_latent_variables, lr, weight_clip):
+        super(WGAN, self).__init__()
         self.num_latent_variables = num_latent_variables
         self.lr = lr
         self.weight_clip = weight_clip
@@ -54,18 +62,23 @@ class WGAN():
         self.discriminator = Discriminator(input_channels=1, length=len(signal), num_parameters=len(params)).to(device)
 
         # Optimizers
-        self.optimizer_g = optim.Adam(self.generator.parameters(), lr=self.lr)
-        self.optimizer_d = optim.Adam(self.discriminator.parameters(), lr=self.lr)
+        self.optimizer_g = torch.optim.Adam(self.generator.parameters(), lr=self.lr)
+        self.optimizer_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr)
 
     def wasserstein_loss(self, output_d, y):
         return torch.mean(output_d * y)
     
-    def train_generator(self, signal_tensor, params_tensor, z):
+    def compute_losses(self, signal_tensor, params_tensor, z):
         fake_params = self.generator(signal_tensor, z)
         fake_output = self.discriminator(signal_tensor, fake_params)
         real_output = self.discriminator(signal_tensor, params_tensor)
         g_loss = -torch.mean(fake_output)
         d_loss = -(torch.mean(real_output) - torch.mean(fake_output))
+
+        return g_loss, d_loss
+    
+    def train_generator(self, signal_tensor, params_tensor, z):
+        d_loss, g_loss = self.compute_losses(signal_tensor, params_tensor, z)
 
         self.optimizer_g.zero_grad()
         g_loss.backward()
@@ -74,11 +87,7 @@ class WGAN():
         return g_loss.item(), d_loss.item()
     
     def train_discriminator(self, signal_tensor, params_tensor, z):
-        fake_params = self.generator(signal_tensor, z)
-        fake_output = self.discriminator(signal_tensor, fake_params)
-        real_output = self.discriminator(signal_tensor, params_tensor)
-        g_loss = -torch.mean(fake_output)
-        d_loss = -(torch.mean(real_output) - torch.mean(fake_output))
+        d_loss, g_loss = self.compute_losses(signal_tensor, params_tensor, z)
 
         self.optimizer_d.zero_grad()
         d_loss.backward()
@@ -92,38 +101,87 @@ class WGAN():
     
 
 # Training the WGAN
-wgan = WGAN(dataset, num_latent_variables=num_latent_variables, lr=learning_rate, weight_clip=0.1)
+wgan = WGAN(num_latent_variables=num_latent_variables, lr=learning_rate, weight_clip=weight_clip).to(device)
 
 loss_list = []
+val_loss_list = []
 
-for i in range(7):
-    for _, (signal_tensor, params_tensor) in enumerate(train_loader):
-        z = torch.randn(1, num_latent_variables, 1).to(device)
-        loss = wgan.train_discriminator(signal_tensor, params_tensor, z)
-        loss_list.append(loss) 
+ncri_list = []
+ngen_list = []
+
+best_val_loss = float('inf')
+patience_counter = 0
+
+training_d = True
 
 for epoch in tqdm(range(num_epochs)):
+    ncri = 0
+    ngen = 0
     for _, (signal_tensor, params_tensor) in enumerate(train_loader):
         z = torch.randn(1, num_latent_variables, 1).to(device)
         signal_tensor = signal_tensor.to(device)
         params_tensor = params_tensor.to(device)
-        
-        if loss_list[-1][1] < d_loss_threshold:
-            loss = wgan.train_generator(signal_tensor, params_tensor, z)
-            loss_list.append(loss)
 
-        if loss_list[-1][1] >= g_loss_threshold:
+        critic_steps = 0
+        generator_steps = 0
+        
+        while training_d and critic_steps < max_steps:
             loss = wgan.train_discriminator(signal_tensor, params_tensor, z)
             loss_list.append(loss)
+            ncri+=1
+            critic_steps+=1
+            if loss[0] > g_loss_threshold:
+                training_d = False
+                break
 
-for i in range(10):
-    for _, (signal_tensor, params_tensor) in enumerate(train_loader):
+        if critic_steps == max_steps:
+            g_loss_threshold -= threshold_adjustment
 
-        loss = wgan.train_generator(signal_tensor, params_tensor, z)
-        loss_list.append(loss)
+        while not training_d and generator_steps < max_steps:
+            loss = wgan.train_generator(signal_tensor, params_tensor, z)
+            loss_list.append(loss)
+            ngen+=1
+            generator_steps+=1
+            if loss[1] > d_loss_threshold:
+                training_d = True
+                break
+
+        if generator_steps == max_steps:
+            d_loss_threshold -= threshold_adjustment
+
+    wgan.eval()
+    with torch.no_grad():
+        for _, (signal_tensor, params_tensor) in enumerate(val_loader):
+            z = torch.randn(1, num_latent_variables, 1).to(device)
+            signal_tensor = signal_tensor.to(device)
+            params_tensor = params_tensor.to(device)
+            
+            g_loss, d_loss = wgan.compute_losses(signal_tensor, params_tensor, z)
+            val_loss = (g_loss.item(), d_loss.item())
+
+    val_loss_list.append(val_loss)
+
+    if val_loss[0] < best_val_loss:
+        best_val_loss = val_loss
+        patience_counter = 0
+        torch.save(wgan.state_dict(), 'best_wgan_model.pt')
+    else:
+        patience_counter += 1
+
+    if patience_counter >= patience:
+        print("Early stopping triggered")
+        break
+
+    ncri_list.append(ncri)
+    ngen_list.append(ngen)
 
 # Plotting the results
-plt.plot(loss_list)
+plt.plot(loss_list, label=['Generator Loss', 'Discriminator Loss'])
+plt.plot(val_loss_list, label='Validation Loss', color='green')
+plt.xlabel('Iterations')
+plt.ylabel('Loss')
+plt.title('Loss Curve')
+plt.legend()
 plt.savefig('loss_plot.png')
 plt.close()
 
