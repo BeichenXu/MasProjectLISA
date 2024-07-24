@@ -166,7 +166,8 @@ class Signal_Generator:
         """
         if self.A is not None and self.omega is not None and self.theta is not None:
             # Combining all parameters into one list
-            params = self.A.tolist() + self.omega.tolist() + self.theta.tolist()
+            self.omega_mutiplied = self.omega * 10.0
+            params = self.A.tolist() + self.omega_mutiplied.tolist() + self.theta.tolist()
         else:
             params = []
             print("Some parameters have not been generated yet.")
