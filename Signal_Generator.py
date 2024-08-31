@@ -89,7 +89,8 @@ class Signal_Generator:
             self.A = self.amp_distribution_func(self.num_sources)
 
         self.omega = self.omega_distribution_func(self.num_sources)
-        self.theta = np.random.uniform(0, 2 * np.pi, size=self.num_sources)
+        #self.theta = np.random.uniform(0, 2 * np.pi, size=self.num_sources)
+        self.theta = np.zeros(self.num_sources)
 
         for i in range(self.num_sources):
             d_t += self.A[i] * np.sin(self.omega[i] * t + self.theta[i])
@@ -164,12 +165,59 @@ class Signal_Generator:
         params: list
             A list containing the parameters of the signal.
         """
-        if self.A is not None and self.omega is not None and self.theta is not None:
-            # Combining all parameters into one list
-            self.omega_mutiplied = self.omega * 10.0
-            params = self.A.tolist() + self.omega_mutiplied.tolist() + self.theta.tolist()
+        """if self.A is not None and self.omega is not None and self.theta is not None:
+            sources = list(zip(self.A, self.omega, self.theta))
+            
+            # Sort the sources based on amplitude (first element of each tuple) in descending order
+            sorted_sources = sorted(sources, key=lambda x: x[0], reverse=True)
+            
+            # Flatten the sorted sources into a single list
+            params = []
+            for amp, omega, theta in sorted_sources:
+                params.extend([amp, omega * 10.0, theta])
         else:
             params = []
             print("Some parameters have not been generated yet.")
 
+        return params """
+    
+        """         if self.A is not None and self.omega is not None and self.theta is not None:
+            sources = list(zip(self.A, self.omega, self.theta))
+            avg_values = [(a + w + t) / 3 for a, w, t in sources]
+            sorted_sources = [x for _, x in sorted(zip(avg_values, sources), reverse=True)]
+
+            params = []
+            for amp, omega, theta in sorted_sources:
+                params.extend([amp, omega * 10.0, theta])
+        else:
+            params = []
+            print("Some parameters have not been generated yet.")
+        
+        return params """
+
+        if self.A is not None and self.omega is not None and self.theta is not None:
+            # Normalize each parameter based on its distribution range
+            def normalize(values, min_val, max_val):
+                return [(v - min_val) / (max_val - min_val) for v in values]
+            
+            A_norm = normalize(self.A, 4, 16)  # Amplitude range: 4 to 16
+            omega_norm = normalize(self.omega, 2 * np.pi * 1e-4, 2 * np.pi * 1e-1)  # Angular frequency range
+            
+            # Combine normalized parameters into sources
+            sources = list(zip(A_norm, omega_norm))
+            
+            # Calculate average of normalized values for each source
+            avg_values = [(a + w) / 2 for a, w in sources]
+            
+            # Sort sources based on average values
+            sorted_sources = [x for _, x in sorted(zip(avg_values, sources), reverse=True)]
+            
+            # Flatten the sorted sources into a single list of normalized parameters
+            params = []
+            for amp_norm, omega_norm in sorted_sources:
+                params.extend([amp_norm, omega_norm])
+        else:
+            params = []
+            print("Some parameters have not been generated yet.")
+        
         return params

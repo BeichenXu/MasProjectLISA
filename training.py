@@ -1,5 +1,6 @@
 # Importing the necessary libraries
 import torch
+from torch import optim, utils, tensor, nn
 
 import matplotlib.pyplot as plt
 from getdist import plots, MCSamples
@@ -16,6 +17,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 datasize = 16000
 num_sources = 1
 noise_amplitude = 0
+freq_range = (1e-4, 1e-1)
+total_time = 1000
 
 num_latent_variables = 20
 learning_rate = 1e-5
@@ -26,31 +29,39 @@ g_loss_threshold = -0.3
 threshold_adjustment = 0.025
 max_steps = 300
 
-patience = 10
+num_epochs = 50
 
-num_epochs = 1
+# Defining the distribution for amplitude and angular frequency
+def amp_distribution(size):
+    """
+    Amplitude distribution using uniform distribution.
+    """
+    return np.random.uniform(4, 16, size=size)
 
-# Generating the dataset
+def omega_distribution(size):
+    """
+    Angular frequency distribution using uniform distribution.
+    """
+    return np.random.uniform(2 * np.pi * 1e-4, 2 * np.pi * 1e-1, size=size)
+
+# Creating the dataset
 dataset = []
 
 for i in range(datasize):
-    SG = Signal_Generator(num_sources=num_sources, noise_amplitude=noise_amplitude)
+    SG = Signal_Generator(num_sources=num_sources, noise_amplitude=noise_amplitude, amp_distribution_func=amp_distribution, omega_distribution_func=omega_distribution, freq_range=freq_range, total_time=total_time)
     signals = SG.generating_signal()
     params = SG.printing_parameters()
     signal = signals['Signal'].values
 
-    signal_tensor = torch.tensor(signal, dtype=torch.float).unsqueeze(0).to(device)
-    params_tensor = torch.tensor(params, dtype=torch.float).to(device)
+    signal_tensor = tensor(signal, dtype=torch.float).unsqueeze(0).to(device)
+    params_tensor = tensor(params, dtype=torch.float).to(device)
 
     dataset.append((signal_tensor, params_tensor))
 
-train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(0.8*datasize), int(0.2*datasize)])
-
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffle=True)
-val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=128, shuffle=False)
+train_loader = utils.data.DataLoader(dataset, batch_size=128, shuffle=True)
 
 # Defining the WGAN traning class
-class WGAN(torch.nn.Module):
+class WGAN(nn.Module):
     def __init__(self, num_latent_variables, lr, weight_clip):
         super(WGAN, self).__init__()
         self.num_latent_variables = num_latent_variables
@@ -62,23 +73,18 @@ class WGAN(torch.nn.Module):
         self.discriminator = Discriminator(input_channels=1, length=len(signal), num_parameters=len(params)).to(device)
 
         # Optimizers
-        self.optimizer_g = torch.optim.Adam(self.generator.parameters(), lr=self.lr)
-        self.optimizer_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr)
+        self.optimizer_g = optim.Adam(self.generator.parameters(), lr=self.lr)
+        self.optimizer_d = optim.Adam(self.discriminator.parameters(), lr=self.lr)
 
     def wasserstein_loss(self, output_d, y):
         return torch.mean(output_d * y)
     
-    def compute_losses(self, signal_tensor, params_tensor, z):
+    def train_generator(self, signal_tensor, params_tensor, z):
         fake_params = self.generator(signal_tensor, z)
         fake_output = self.discriminator(signal_tensor, fake_params)
         real_output = self.discriminator(signal_tensor, params_tensor)
         g_loss = -torch.mean(fake_output)
         d_loss = -(torch.mean(real_output) - torch.mean(fake_output))
-
-        return g_loss, d_loss
-    
-    def train_generator(self, signal_tensor, params_tensor, z):
-        d_loss, g_loss = self.compute_losses(signal_tensor, params_tensor, z)
 
         self.optimizer_g.zero_grad()
         g_loss.backward()
@@ -87,7 +93,11 @@ class WGAN(torch.nn.Module):
         return g_loss.item(), d_loss.item()
     
     def train_discriminator(self, signal_tensor, params_tensor, z):
-        d_loss, g_loss = self.compute_losses(signal_tensor, params_tensor, z)
+        fake_params = self.generator(signal_tensor, z)
+        fake_output = self.discriminator(signal_tensor, fake_params)
+        real_output = self.discriminator(signal_tensor, params_tensor)
+        g_loss = -torch.mean(fake_output)
+        d_loss = -(torch.mean(real_output) - torch.mean(fake_output))
 
         self.optimizer_d.zero_grad()
         d_loss.backward()
@@ -100,17 +110,16 @@ class WGAN(torch.nn.Module):
         return g_loss.item(), d_loss.item()
     
 
-# Training the WGAN
-wgan = WGAN(num_latent_variables=num_latent_variables, lr=learning_rate, weight_clip=weight_clip).to(device)
+# Adaptive training
+wgan = WGAN(num_latent_variables=num_latent_variables, lr=learning_rate, weight_clip=0.1).to(device)
 
 loss_list = []
-val_loss_list = []
 
 ncri_list = []
 ngen_list = []
 
-best_val_loss = float('inf')
-patience_counter = 0
+d_loss_threshold = -0.1
+g_loss_threshold = -0.3
 
 training_d = True
 
@@ -119,8 +128,6 @@ for epoch in tqdm(range(num_epochs)):
     ngen = 0
     for _, (signal_tensor, params_tensor) in enumerate(train_loader):
         z = torch.randn(1, num_latent_variables, 1).to(device)
-        signal_tensor = signal_tensor.to(device)
-        params_tensor = params_tensor.to(device)
 
         critic_steps = 0
         generator_steps = 0
@@ -149,35 +156,11 @@ for epoch in tqdm(range(num_epochs)):
         if generator_steps == max_steps:
             d_loss_threshold -= threshold_adjustment
 
-    wgan.eval()
-    with torch.no_grad():
-        for _, (signal_tensor, params_tensor) in enumerate(val_loader):
-            z = torch.randn(1, num_latent_variables, 1).to(device)
-            signal_tensor = signal_tensor.to(device)
-            params_tensor = params_tensor.to(device)
-            
-            g_loss, d_loss = wgan.compute_losses(signal_tensor, params_tensor, z)
-            val_loss = (g_loss.item(), d_loss.item())
-
-    val_loss_list.append(val_loss)
-
-    if val_loss[0] < best_val_loss:
-        best_val_loss = val_loss
-        patience_counter = 0
-        torch.save(wgan.state_dict(), 'best_wgan_model.pt')
-    else:
-        patience_counter += 1
-
-    if patience_counter >= patience:
-        print("Early stopping triggered")
-        break
-
     ncri_list.append(ncri)
     ngen_list.append(ngen)
 
 # Plotting the results
 plt.plot(loss_list, label=['Generator Loss', 'Discriminator Loss'])
-plt.plot(val_loss_list, label='Validation Loss', color='green')
 plt.xlabel('Iterations')
 plt.ylabel('Loss')
 plt.title('Loss Curve')
@@ -185,13 +168,35 @@ plt.legend()
 plt.savefig('loss_plot.png')
 plt.close()
 
+# Plotting the number of critic and generator steps
+fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+axs[0].plot(ncri_list, label='Number of critic steps', color='blue')
+axs[0].set_title('Number of critic steps')
+axs[0].set_xlabel('Epoch')
+axs[0].set_ylabel('Steps')
+axs[0].legend()
+
+axs[1].plot(ngen_list, label='Number of generator steps', color='red')
+axs[1].set_title('Number of generator steps')
+axs[1].set_xlabel('Epoch')
+axs[1].set_ylabel('Steps')
+axs[1].legend()
+
+plt.tight_layout()
+plt.savefig('number of steps.png')
+plt.close()
+
 generator = wgan.generator
+discriminator = wgan.discriminator
+
 generator.eval()
 
 # Generating the parameters for triangle graph
 generated_params_list = []
 
-TS = Signal_Generator(num_sources=1, noise_amplitude=1)
+TS = Signal_Generator(num_sources=num_sources, noise_amplitude=noise_amplitude, freq_range=freq_range, total_time=total_time
+                      , amp_distribution_func=amp_distribution, omega_distribution_func=omega_distribution)
 test_data = TS.generating_signal()
 params = TS.printing_parameters()
 
@@ -243,7 +248,8 @@ generated_params_list = []
 
 test_times = 30
 for i in range(test_times):
-    TS = Signal_Generator(num_sources=1, noise_amplitude=1)
+    TS = Signal_Generator(num_sources=num_sources, noise_amplitude=noise_amplitude, amp_distribution_func=amp_distribution
+                          , omega_distribution_func=omega_distribution, freq_range=freq_range, total_time=total_time)
     test_data = TS.generating_signal()
     params = TS.printing_parameters()
 
@@ -251,7 +257,7 @@ for i in range(test_times):
     input_signal_tensor = torch.tensor(input_signal, dtype=torch.float).unsqueeze(0).unsqueeze(0).to(device)
 
     with torch.no_grad():
-        #z = torch.randn(1, num_latent_variables, 1).to(device)
+        z = torch.randn(1, num_latent_variables, 1).to(device)
         generated_params = generator(input_signal_tensor, z).squeeze().cpu().numpy()
 
     params_list.append(params)
@@ -294,3 +300,6 @@ plt.legend()
 plt.tight_layout()
 plt.savefig('comparison_plot.png')
 plt.close()
+
+torch.save(generator, 'generator.pt')
+torch.save(discriminator, 'discriminator.pt') 
