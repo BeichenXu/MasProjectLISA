@@ -1,2 +1,2 @@
 # MasProjectLISA
-This repository is used to back up unfinished project code.
+This repository is used to back up my master project code.
